@@ -1,47 +1,91 @@
 pipeline {
-    agent any // S'exécute sur n'importe quel agent disponible
+    agent any
 
     environment {
         IMAGE_NAME = 'sentiment-ai'
         REGISTRY   = 'ghcr.io/mohamed-tahiri'
-        
-        // Récupération du SHA Git court du commit pour un taggage unique
-        IMAGE_TAG  = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 checkout scm
-                echo "Branche : ${env.BRANCH_NAME}"
-                echo "Commit : ${env.GIT_COMMIT}"
+                script {
+                    env.IMAGE_TAG    = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    env.BRANCH_LABEL = sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
+                }
+                echo "Branche   : ${env.BRANCH_LABEL}"
+                echo "Commit    : ${env.GIT_COMMIT}"
+                echo "Image Tag : ${env.IMAGE_TAG}"
                 sh 'git log --oneline -5'
             }
         }
-        
-        stage('Build & Test') {
+
+        stage('Build Docker Image') {
             steps {
-                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                sh "docker build -t ${IMAGE_NAME}:${env.IMAGE_TAG} ."
+            }
+        }
+
+        stage('Tests & Coverage') {
+            steps {
                 sh """
-                docker run --rm \
-                ${IMAGE_NAME}:${IMAGE_TAG} \
-                pytest tests/ -v \
-                --cov=src \
-                --cov-report=xml:coverage.xml \
-                --cov-report=term-missing \
-                --cov-fail-under=70
+                    docker run --rm \
+                        -v \$PWD:/app \
+                        -w /app \
+                        ${IMAGE_NAME}:${env.IMAGE_TAG} \
+                        pytest tests/ -v \
+                        --cov=src \
+                        --cov-report=xml:coverage.xml \
+                        --cov-report=term-missing \
+                        --cov-fail-under=70
                 """
+                sh 'ls -la coverage.xml'
             }
             post {
+                always {
+                    archiveArtifacts artifacts: 'coverage.xml', fingerprint: true
+                }
                 failure {
-                    echo 'Tests échoués ou couverture de code insuffisante (< 70%)'
+                    echo 'Tests échoués ou couverture insuffisante (< 70%)'
                 }
             }
         }
-        
-        stage('Push') {
-            when { 
-                branch 'main' 
+
+        stage('SonarQube Analysis') {
+            when {
+                expression { env.BRANCH_LABEL == 'main' }
+            }
+            steps {
+                withSonarQubeEnv('sonarqube') {
+                    sh """
+                        sonar-scanner \
+                            -Dsonar.projectKey=sentiment-ai \
+                            -Dsonar.sources=src \
+                            -Dsonar.python.coverage.reportPaths=coverage.xml
+                    """
+                }
+            }
+        }
+
+        stage('Trivy Scan') {
+            when {
+                expression { env.BRANCH_LABEL == 'main' }
+            }
+            steps {
+                sh """
+                    trivy image \
+                        --severity HIGH,CRITICAL \
+                        --exit-code 1 \
+                        ${IMAGE_NAME}:${env.IMAGE_TAG}
+                """
+            }
+        }
+
+        stage('Push Image') {
+            when {
+                expression { env.BRANCH_LABEL == 'main' }
             }
             steps {
                 withCredentials([usernamePassword(
@@ -50,12 +94,13 @@ pipeline {
                     passwordVariable: 'REGISTRY_PASS'
                 )]) {
                     sh """
-                    echo \$REGISTRY_PASS | docker login ghcr.io -u \$REGISTRY_USER --password-stdin
-                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
-                    docker push ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
-                    
-                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${REGISTRY}/${IMAGE_NAME}:latest
-                    docker push ${REGISTRY}/${IMAGE_NAME}:latest
+                        echo \$REGISTRY_PASS | docker login ghcr.io -u \$REGISTRY_USER --password-stdin
+
+                        docker tag ${IMAGE_NAME}:${env.IMAGE_TAG} ${REGISTRY}/${IMAGE_NAME}:${env.IMAGE_TAG}
+                        docker push ${REGISTRY}/${IMAGE_NAME}:${env.IMAGE_TAG}
+
+                        docker tag ${IMAGE_NAME}:${env.IMAGE_TAG} ${REGISTRY}/${IMAGE_NAME}:latest
+                        docker push ${REGISTRY}/${IMAGE_NAME}:latest
                     """
                 }
             }
@@ -64,14 +109,13 @@ pipeline {
 
     post {
         always {
-            // Nettoyer les conteneurs et volumes de test résiduels
             sh 'docker compose down -v 2>/dev/null || true'
         }
         success {
-            echo "Pipeline réussi ! Image poussée : ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+            echo "Pipeline réussi ! Image publiée : ${REGISTRY}/${IMAGE_NAME}:${env.IMAGE_TAG}"
         }
         failure {
-            echo 'Pipeline échoué. Consultez les logs ci-dessus.'
+            echo 'Pipeline échoué. Consultez les logs Jenkins.'
         }
     }
 }
