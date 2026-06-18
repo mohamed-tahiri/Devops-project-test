@@ -30,13 +30,32 @@ pipeline {
 
         stage('Tests & Coverage') {
             steps {
-                sh """
-                    docker run --rm \
-                        -v \$(pwd):/workspace_reports \
-                        ${IMAGE_NAME}:${env.IMAGE_TAG} \
-                        bash -c "pytest tests/ -v --cov=src --cov-report=xml:/workspace_reports/coverage.xml --cov-report=term-missing --cov-fail-under=70"
-                """
-                sh 'ls -la coverage.xml'
+                script {
+                    // On définit un nom unique pour le conteneur de test
+                    def containerName = "${IMAGE_NAME}-tests-${env.BUILD_NUMBER}"
+                    
+                    try {
+                        // 1. On lance le conteneur SANS montage de volume encombrant
+                        sh """
+                            docker run --name ${containerName} \
+                                ${IMAGE_NAME}:${env.IMAGE_TAG} \
+                                pytest tests/ -v \
+                                --cov=src \
+                                --cov-report=xml:coverage.xml \
+                                --cov-report=term-missing \
+                                --cov-fail-under=70
+                        """
+                    } finally {
+                        // 2. Qu'il y ait succès ou échec, on extrait le fichier XML généré à l'intérieur du conteneur
+                        sh "docker cp ${containerName}:/app/coverage.xml ./coverage.xml || true"
+                        
+                        // 3. On nettoie le conteneur pour ne pas saturer l'espace
+                        sh "docker rm -f ${containerName} || true"
+                    }
+                    
+                    // Vérification visuelle dans les logs
+                    sh 'ls -la coverage.xml'
+                }
             }
             post {
                 always {
