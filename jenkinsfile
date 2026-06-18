@@ -72,9 +72,11 @@ pipeline {
                 expression { env.BRANCH_LABEL == 'main' }
             }
             steps {
-                withSonarQubeEnv('sonarqube') {
+                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                     sh """
                         sonar-scanner \
+                            -Dsonar.host.url=http://172.17.0.1:9000 \
+                            -Dsonar.token=\$SONAR_TOKEN \
                             -Dsonar.projectKey=sentiment-ai \
                             -Dsonar.sources=src \
                             -Dsonar.python.coverage.reportPaths=coverage.xml
