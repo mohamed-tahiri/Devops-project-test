@@ -11,7 +11,7 @@ class SentimentModel :
         neg = sum (1 for w in negative_words if w in text_lower )
         
         if pos > neg :
-            return {" label ": " POSITIVE ", " score ": round (0.6 + 0.1* pos , 2) , " text ": text }
+            return {"label": "POSITIVE", "score": round (0.6 + 0.1* pos , 2) , "text": text }
         elif neg > pos :
-            return {" label ": " NEGATIVE ", " score ": round (0.6 + 0.1* neg , 2) , " text ": text }
-        return {" label ": " NEUTRAL ", " score ": 0.5 , " text ": text }
+            return {"label": "NEGATIVE", "score": round (0.6 + 0.1* neg , 2) , "text": text }
+        return {"label": "NEUTRAL", "score": 0.5 , "text": text }
