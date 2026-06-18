@@ -32,14 +32,9 @@ pipeline {
             steps {
                 sh """
                     docker run --rm \
-                        -v \$(pwd):/app \
-                        -w /app \
+                        -v \$(pwd):/workspace_reports \
                         ${IMAGE_NAME}:${env.IMAGE_TAG} \
-                        pytest tests/ -v \
-                        --cov=src \
-                        --cov-report=xml:coverage.xml \
-                        --cov-report=term-missing \
-                        --cov-fail-under=70
+                        bash -c "pytest tests/ -v --cov=src --cov-report=xml:/workspace_reports/coverage.xml --cov-report=term-missing --cov-fail-under=70"
                 """
                 sh 'ls -la coverage.xml'
             }
