@@ -80,6 +80,7 @@ pipeline {
                             -Dsonar.projectKey=sentiment-ai \
                             -Dsonar.sources=src \
                             -Dsonar.python.coverage.reportPaths=coverage.xml \
+                            -Dsonar.scanner.skipJreProvisioning=true \
                             -X
                     """
                 }
