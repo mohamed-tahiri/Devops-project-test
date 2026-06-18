@@ -79,7 +79,8 @@ pipeline {
                             -Dsonar.token=\$SONAR_TOKEN \
                             -Dsonar.projectKey=sentiment-ai \
                             -Dsonar.sources=src \
-                            -Dsonar.python.coverage.reportPaths=coverage.xml
+                            -Dsonar.python.coverage.reportPaths=coverage.xml \
+                            -X
                     """
                 }
             }
