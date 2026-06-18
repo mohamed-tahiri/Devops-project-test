@@ -35,7 +35,7 @@ pipeline {
                         -v \$PWD:/app \
                         -w /app \
                         ${IMAGE_NAME}:${env.IMAGE_TAG} \
-                        pytest tests/ -v \
+                        python -m pytest tests -v \
                         --cov=src \
                         --cov-report=xml:coverage.xml \
                         --cov-report=term-missing \
