@@ -57,8 +57,6 @@ uploads/
 # Alembic migrations cache
 alembic/versions/__pycache__/
 
-# Coverage
-coverage.xml
 
 # PyCharm
 *.iml
