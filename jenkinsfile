@@ -13,7 +13,7 @@ pipeline {
                 checkout scm
                 script {
                     env.IMAGE_TAG    = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-                    env.BRANCH_LABEL = sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
+                    env.BRANCH_LABEL = sh(script: 'git name-rev --name-only HEAD | sed "s|remotes/origin/||"', returnStdout: true).trim()
                 }
                 echo "Branche   : ${env.BRANCH_LABEL}"
                 echo "Commit    : ${env.GIT_COMMIT}"
@@ -32,7 +32,7 @@ pipeline {
             steps {
                 sh """
                     docker run --rm \
-                        -v $(PWD):/app \
+                        -v \$(pwd):/app \
                         -w /app \
                         ${IMAGE_NAME}:${env.IMAGE_TAG} \
                         pytest tests/ -v \
@@ -40,13 +40,12 @@ pipeline {
                         --cov-report=xml:coverage.xml \
                         --cov-report=term-missing \
                         --cov-fail-under=70
-
                 """
                 sh 'ls -la coverage.xml'
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'coverage.xml', fingerprint: true
+                    archiveArtifacts artifacts: 'coverage.xml', allowEmptyArchive: true, fingerprint: true
                 }
                 failure {
                     echo 'Tests échoués ou couverture insuffisante (< 70%)'
