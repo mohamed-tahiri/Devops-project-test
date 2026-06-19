@@ -7,7 +7,6 @@ pipeline {
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 checkout scm
@@ -22,81 +21,101 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build & Test') {
             steps {
-                sh "docker build -t ${IMAGE_NAME}:${env.IMAGE_TAG} ."
-            }
-        }
-
-        stage('Tests & Coverage') {
-            steps {
-                script {
-                    // On définit un nom unique pour le conteneur de test
-                    def containerName = "${IMAGE_NAME}-tests-${env.BUILD_NUMBER}"
+                sh '''
+                    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
                     
-                    try {
-                        // 1. On lance le conteneur SANS montage de volume encombrant
-                        sh """
-                            docker run --name ${containerName} \
-                                ${IMAGE_NAME}:${env.IMAGE_TAG} \
-                                pytest tests/ -v \
-                                --cov=src \
-                                --cov-report=xml:coverage.xml \
-                                --cov-report=term-missing \
-                                --cov-fail-under=70
-                        """
-                    } finally {
-                        // 2. Qu'il y ait succès ou échec, on extrait le fichier XML généré à l'intérieur du conteneur
-                        sh "docker cp ${containerName}:/app/coverage.xml ./coverage.xml || true"
-                        
-                        // 3. On nettoie le conteneur pour ne pas saturer l'espace
-                        sh "docker rm -f ${containerName} || true"
-                    }
+                    # Supprimer un éventuel conteneur test-runner résiduel
+                    docker rm -f test-runner 2>/dev/null || true
                     
-                    // Vérification visuelle dans les logs
-                    sh 'ls -la coverage.xml'
-                }
+                    # Lancer les tests en nommant le conteneur pour copier coverage.xml
+                    set +e
+                    docker run \
+                        -e CI=true \
+                        --name test-runner \
+                        ${IMAGE_NAME}:${IMAGE_TAG} \
+                        pytest tests/ -v \
+                        --cov=src \
+                        --cov-report=xml:/tmp/coverage.xml \
+                        --cov-report=term-missing \
+                        --cov-fail-under=70
+                    TEST_EXIT_CODE=$?
+                    set -e
+                    
+                    # Copier coverage.xml depuis le conteneur vers le workspace
+                    docker cp test-runner:/tmp/coverage.xml ./coverage.xml 2>/dev/null || true
+                    docker rm -f test-runner 2>/dev/null || true
+                    
+                    if [ $TEST_EXIT_CODE -ne 0 ]; then
+                        echo "Tests échoués avec le code de sortie : $TEST_EXIT_CODE"
+                        exit $TEST_EXIT_CODE
+                    fi
+                '''
             }
             post {
-                always {
-                    archiveArtifacts artifacts: 'coverage.xml', allowEmptyArchive: true, fingerprint: true
-                }
-                failure {
-                    echo 'Tests échoués ou couverture insuffisante (< 70%)'
+                failure { 
+                    echo 'Tests échoués ou coverage insuffisant (< 70%)' 
                 }
             }
         }
 
         stage('SonarQube Analysis') {
-            when {
-                expression { env.BRANCH_LABEL == 'main' }
+            environment {
+                SONARQUBE_TOKEN = credentials('sonar-token')
             }
             steps {
-                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
-                    sh """
-                        sonar-scanner \
-                            -Dsonar.host.url=http://172.17.0.1:9000 \
-                            -Dsonar.token=\$SONAR_TOKEN \
+                withSonarQubeEnv('sonarqube') {
+                    sh '''
+                        docker run --rm \
+                            --network cicd-network \
+                            --volumes-from jenkins \
+                            -w "$WORKSPACE" \
+                            -e SONAR_HOST_URL="$SONAR_HOST_URL" \
+                            -e SONAR_TOKEN="$SONARQUBE_TOKEN" \
+                            sonarsource/sonar-scanner-cli:latest \
+                            sonar-scanner \
                             -Dsonar.projectKey=sentiment-ai \
+                            -Dsonar.projectName=SentimentAI \
+                            -Dsonar.projectBaseDir="$WORKSPACE" \
                             -Dsonar.sources=src \
+                            -Dsonar.python.version=3.11 \
                             -Dsonar.python.coverage.reportPaths=coverage.xml \
-                            -Dsonar.scanner.skipJreProvisioning=true
-                    """
+                            -Dsonar.sourceEncoding=UTF-8 \
+                            -Dsonar.scanner.metadataFilePath=$WORKSPACE/report-task.txt
+                    '''
                 }
             }
         }
 
-        stage('Trivy Scan') {
-            when {
-                expression { env.BRANCH_LABEL == 'main' }
-            }
+        stage('Quality Gate') {
             steps {
+                timeout(time: 15, unit: 'MINUTES') {
+                    // Attend le résultat asynchrone du Quality Gate SonarQube
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        stage('Security Scan (Trivy)') {
+            steps {
+                // --exit-code 1 : fail si une CVE HIGH ou CRITICAL est trouvée
                 sh """
-                    trivy image \
+                    docker run --rm \
+                        -v /var/run/docker.sock:/var/run/docker.sock \
+                        -v trivy-cache:/root/.cache/trivy \
+                        aquasec/trivy:latest image \
                         --severity HIGH,CRITICAL \
                         --exit-code 1 \
+                        --format table \
                         ${IMAGE_NAME}:${env.IMAGE_TAG}
                 """
+            }
+            post {
+                failure {
+                    echo 'Vulnérabilités CRITICAL ou HIGH détectées !'
+                    echo 'Corrigez les dépendances avant de déployer.'
+                }
             }
         }
 
