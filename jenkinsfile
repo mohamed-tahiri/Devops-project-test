@@ -122,26 +122,19 @@ pipeline {
             }
         }
 
-        stage('Push Image') {
-            when {
-                expression { env.BRANCH_LABEL == 'main' }
-            }
+        stage('Deploy Staging ') {
+            when { branch 'main' }
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'github-token',
-                    usernameVariable: 'REGISTRY_USER',
-                    passwordVariable: 'REGISTRY_PASS'
-                )]) {
-                    sh """
-                        echo \$REGISTRY_PASS | docker login ghcr.io -u \$REGISTRY_USER --password-stdin
-
-                        docker tag ${IMAGE_NAME}:${env.IMAGE_TAG} ${REGISTRY}/${IMAGE_NAME}:${env.IMAGE_TAG}
-                        docker push ${REGISTRY}/${IMAGE_NAME}:${env.IMAGE_TAG}
-
-                        docker tag ${IMAGE_NAME}:${env.IMAGE_TAG} ${REGISTRY}/${IMAGE_NAME}:latest
-                        docker push ${REGISTRY}/${IMAGE_NAME}:latest
-                    """
-                }
+                echo "Dé ploiement de ${ REGISTRY }/${ IMAGE_NAME }:${ IMAGE_TAG } en staging... "
+                sh ’’’
+                    # Arrêter le staging précé dent proprement
+                    docker compose -f docker - compose .yml -p staging down 2 >/ dev/ null ||
+                    true
+                    # Dé marrer la nouvelle version
+                    docker compose -f docker - compose .yml -p staging up -d
+                    
+                    echo " Staging disponible sur http :// localhost :8001"
+                ’’’
             }
         }
     }
