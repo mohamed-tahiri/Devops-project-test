@@ -1,17 +1,19 @@
 from fastapi import FastAPI
-from src.schemas import PredictionRequest , PredictionResponse
+from src.schemas import PredictionRequest, PredictionResponse
 from src.model import SentimentModel
 
-app = FastAPI ( title =" SentimentAI ", version =" 0.1.0 ")
+app = FastAPI(title=" SentimentAI ", version=" 0.1.0 ")
 
-model = SentimentModel ()
+model = SentimentModel()
+
 
 @app.get("/health")
-def health () :
-    """ Endpoint de healthcheck utilis é par Docker et les load balancers ."""
+def health():
+    """Endpoint de healthcheck utilis é par Docker et les load balancers ."""
     return {" status ": "ok"}
+
 
 @app.post("/predict", response_model=PredictionResponse)
 def predict(request: PredictionRequest):
-    """ Analyse le sentiment du texte fourni et retourne un label + score ."""
+    """Analyse le sentiment du texte fourni et retourne un label + score ."""
     return model.predict(request.text)
