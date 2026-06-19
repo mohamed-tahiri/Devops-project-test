@@ -100,7 +100,7 @@ pipeline {
                     sh '''
                         docker run --rm \
                             --network cicd-network \
-                            -v "$WORKSPACE:$WORKSPACE" \
+                            --volumes-from jenkins \
                             -w "$WORKSPACE" \
                             -e SONAR_HOST_URL="$SONAR_HOST_URL" \
                             -e SONAR_TOKEN="$SONARQUBE_TOKEN" \
