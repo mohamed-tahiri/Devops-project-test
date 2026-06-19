@@ -19,5 +19,5 @@ variable "container_name" {
 variable "registry" {
   description = "Registry Docker"
   type        = string
-  default     = "ghcr.io/mohamed-tahiri" 
+  default     = "ghcr.io/mohamed-tahiri"
 }
