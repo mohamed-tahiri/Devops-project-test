@@ -146,7 +146,8 @@ pipeline {
         }
 
         stage('Push') {
-            when { expression { env.BRANCH_LABEL == 'main' } }
+            // Utilise la méthode native de Jenkins, beaucoup plus stable
+            when { branch 'main' } 
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'github-token',
@@ -163,7 +164,7 @@ pipeline {
         }
 
         stage('IaC Apply') {
-            when { expression { env.BRANCH_LABEL == 'main' } }
+            when { branch 'main' }
             steps {
                 dir('infra') {
                     // Initialisation réelle du provider Docker et application de l'infrastructure
@@ -177,7 +178,7 @@ pipeline {
         }
 
         stage('Deploy Staging') {
-            when { expression { env.BRANCH_LABEL == 'main' } }
+            when { branch 'main' }
             steps {
                 // S'assure que le conteneur déployé par Terraform répond correctement sur le port 8001
                 sh 'curl -f http://localhost:8001/health || exit 1'
