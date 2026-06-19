@@ -1,26 +1,27 @@
 class SentimentModel:
     def __init__(self):
-        # Ce message sera visible dans " docker logs sentiment "
-        print("[ SentimentModel ] Modèle charg é")
+        # Ce message sera visible dans "docker logs sentiment"
+        print("[SentimentModel] Modèle chargé")
 
     def predict(self, text: str) -> dict:
         text_lower = text.lower()
         positive_words = [
-            " bien ",
-            " super ",
-            " excellent ",
-            " parfait ",
+            "bien",
+            "super",
+            "excellent",
+            "parfait",
             "bon",
-            " aime ",
-            " adore ",
+            "aime",
+            "adore",
         ]
         negative_words = [
-            "mal ",
-            "nul ",
-            " horrible ",
-            " mauvais ",
-            "dé teste ",
-            " pire ",
+            "mal",
+            "nul",
+            "horrible",
+            "mauvais",
+            "deteste",
+            "déteste",
+            "pire",
         ]
 
         pos = sum(1 for w in positive_words if w in text_lower)

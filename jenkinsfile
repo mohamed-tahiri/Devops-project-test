@@ -25,7 +25,7 @@ pipeline {
             steps {
                 sh '''
                     docker run --rm \
-                        --volumes-from jenkins \
+                        -v "$WORKSPACE:$WORKSPACE" \
                         -w "$WORKSPACE" \
                         python:3.12-slim \
                         sh -c "pip install flake8 -q && flake8 src/ --max-line-length=100"
@@ -38,7 +38,7 @@ pipeline {
                 dir('infra') {
                     // Analyse statique (Fail Fast) sur toutes les branches sans contacter de backend
                     sh 'terraform init -backend=false -input=false'
-                    sh 'terraform fmt'
+                    sh 'terraform fmt -check -recursive'
                     sh 'terraform validate'
                 }
             }
@@ -48,13 +48,13 @@ pipeline {
             steps {
                 sh '''
                     docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
-                    
+
                     # On crée un nom de conteneur unique basé sur le tag du commit
                     RUNNER_NAME="test-runner-${IMAGE_TAG}"
-                    
+
                     # Nettoyage par sécurité
                     docker rm -f $RUNNER_NAME 2>/dev/null || true
-                    
+
                     # Lancer les tests
                     set +e
                     docker run \
@@ -68,20 +68,25 @@ pipeline {
                         --cov-fail-under=70
                     TEST_EXIT_CODE=$?
                     set -e
-                    
+
                     # Copier le rapport depuis le conteneur unique vers le workspace
-                    docker cp $RUNNER_NAME:/tmp/coverage.xml ./coverage.xml 2>/dev/null || true
+                    docker cp $RUNNER_NAME:/tmp/coverage.xml ./coverage.xml
+                    COPY_EXIT_CODE=$?
                     docker rm -f $RUNNER_NAME 2>/dev/null || true
-                    
+
                     if [ $TEST_EXIT_CODE -ne 0 ]; then
                         echo "Tests échoués avec le code de sortie : $TEST_EXIT_CODE"
                         exit $TEST_EXIT_CODE
                     fi
+
+                    if [ $COPY_EXIT_CODE -ne 0 ]; then
+                        echo "Avertissement : coverage.xml introuvable dans le conteneur (analyse SonarQube sans couverture)"
+                    fi
                 '''
             }
             post {
-                failure { 
-                    echo 'Tests échoués ou coverage insuffisant (< 70%)' 
+                failure {
+                    echo 'Tests échoués ou coverage insuffisant (< 70%)'
                 }
             }
         }
@@ -95,7 +100,7 @@ pipeline {
                     sh '''
                         docker run --rm \
                             --network cicd-network \
-                            --volumes-from jenkins \
+                            -v "$WORKSPACE:$WORKSPACE" \
                             -w "$WORKSPACE" \
                             -e SONAR_HOST_URL="$SONAR_HOST_URL" \
                             -e SONAR_TOKEN="$SONARQUBE_TOKEN" \
@@ -146,8 +151,7 @@ pipeline {
         }
 
         stage('Push') {
-            // Utilise la méthode native de Jenkins, beaucoup plus stable
-            when { branch 'main' } 
+            when { expression { env.BRANCH_LABEL == 'main' } }
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'github-token',
@@ -164,7 +168,7 @@ pipeline {
         }
 
         stage('IaC Apply') {
-            when { branch 'main' }
+            when { expression { env.BRANCH_LABEL == 'main' } }
             steps {
                 dir('infra') {
                     // Initialisation réelle du provider Docker et application de l'infrastructure
@@ -178,7 +182,7 @@ pipeline {
         }
 
         stage('Deploy Staging') {
-            when { branch 'main' }
+            when { expression { env.BRANCH_LABEL == 'main' } }
             steps {
                 // S'assure que le conteneur déployé par Terraform répond correctement sur le port 8001
                 sh 'curl -f http://localhost:8001/health || exit 1'
