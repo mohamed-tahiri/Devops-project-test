@@ -26,14 +26,17 @@ pipeline {
                 sh '''
                     docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
                     
-                    # Supprimer un éventuel conteneur test-runner résiduel
-                    docker rm -f test-runner 2>/dev/null || true
+                    # On crée un nom de conteneur unique basé sur le tag du commit
+                    RUNNER_NAME="test-runner-${IMAGE_TAG}"
                     
-                    # Lancer les tests en nommant le conteneur pour copier coverage.xml
+                    # Nettoyage par sécurité
+                    docker rm -f $RUNNER_NAME 2>/dev/null || true
+                    
+                    # Lancer les tests
                     set +e
                     docker run \
                         -e CI=true \
-                        --name test-runner \
+                        --name $RUNNER_NAME \
                         ${IMAGE_NAME}:${IMAGE_TAG} \
                         pytest tests/ -v \
                         --cov=src \
@@ -43,9 +46,9 @@ pipeline {
                     TEST_EXIT_CODE=$?
                     set -e
                     
-                    # Copier coverage.xml depuis le conteneur vers le workspace
-                    docker cp test-runner:/tmp/coverage.xml ./coverage.xml 2>/dev/null || true
-                    docker rm -f test-runner 2>/dev/null || true
+                    # Copier le rapport depuis le conteneur unique vers le workspace
+                    docker cp $RUNNER_NAME:/tmp/coverage.xml ./coverage.xml 2>/dev/null || true
+                    docker rm -f $RUNNER_NAME 2>/dev/null || true
                     
                     if [ $TEST_EXIT_CODE -ne 0 ]; then
                         echo "Tests échoués avec le code de sortie : $TEST_EXIT_CODE"
