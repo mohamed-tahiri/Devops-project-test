@@ -167,6 +167,17 @@ pipeline {
             }
         }
 
+        stage('Prepare monitoring config') {
+            steps {
+                sh '''
+                    mkdir -p /tmp/sentiment-ai-monitoring
+                    docker run --rm --volumes-from jenkins \
+                    -v /tmp/sentiment-ai-monitoring:/dest \
+                    alpine cp /var/jenkins_home/workspace/sentiment-ai-pipeline/monitoring/prometheus.yml /dest/
+                '''
+            }
+        }
+
         stage('IaC Apply') {
             when { expression { env.BRANCH_LABEL == 'main' } }
             steps {
