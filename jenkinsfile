@@ -172,9 +172,6 @@ pipeline {
             steps {
                 dir('infra') {
                     sh 'terraform init -input=false'
-                    sh '''
-                        docker network rm cicd-network 2>/dev/null || true
-                    '''
                     sh 'terraform apply -auto-approve -var="image_tag=${IMAGE_TAG}"'
                 }
             }

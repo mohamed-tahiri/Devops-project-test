@@ -13,7 +13,9 @@ provider "docker" {
 }
 
 # Réseau Docker partagé (Jenkins / SonarQube / SentimentAI)
-resource "docker_network" "cicd" {
+# Ce réseau existe déjà sur l'hôte (créé en dehors de Terraform).
+# On le référence en lecture seule pour éviter tout conflit de création/suppression.
+data "docker_network" "cicd" {
   name = "cicd-network"
 }
 
@@ -30,7 +32,7 @@ resource "docker_container" "sentiment_staging" {
   restart = "unless-stopped"
 
   networks_advanced {
-    name = docker_network.cicd.name
+    name = data.docker_network.cicd.name
   }
 
   ports {
