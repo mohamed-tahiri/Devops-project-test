@@ -154,7 +154,7 @@ pipeline {
             when { expression { env.BRANCH_LABEL == 'main' } }
             steps {
                 withCredentials([usernamePassword(
-                    credentialsId: 'github-token',
+                    credentialsId: '0a94f2e4-10d0-454b-9961-ae0a41c86475',
                     usernameVariable: 'REGISTRY_USER',
                     passwordVariable: 'REGISTRY_PASS'
                 )]) {
@@ -171,7 +171,6 @@ pipeline {
             when { expression { env.BRANCH_LABEL == 'main' } }
             steps {
                 dir('infra') {
-                    // Initialisation réelle du provider Docker et application de l'infrastructure
                     sh 'terraform init -input=false'
                     sh """
                         terraform apply -auto-approve \
@@ -184,7 +183,6 @@ pipeline {
         stage('Deploy Staging') {
             when { expression { env.BRANCH_LABEL == 'main' } }
             steps {
-                // S'assure que le conteneur déployé par Terraform répond correctement sur le port 8001
                 sh 'curl -f http://localhost:8001/health || exit 1'
                 echo "Staging disponible sur http://localhost:8001"
             }
