@@ -183,7 +183,7 @@ pipeline {
         stage('Deploy Staging') {
             when { expression { env.BRANCH_LABEL == 'main' } }
             steps {
-                sh 'curl -f http://localhost:8001/health || exit 1'
+                sh 'curl -f http://sentiment-staging:8000/health || exit 1'
                 echo "Staging disponible sur http://localhost:8001"
             }
         }
