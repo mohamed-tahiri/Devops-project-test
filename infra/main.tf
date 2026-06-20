@@ -51,4 +51,8 @@ resource "docker_container" "sentiment_staging" {
     timeout  = "10s"
     retries  = 3
   }
+
+  lifecycle {
+    replace_triggered_by = [docker_image.sentiment.image_id]
+  }
 }
