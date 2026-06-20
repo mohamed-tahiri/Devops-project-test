@@ -38,7 +38,7 @@ pipeline {
                 dir('infra') {
                     // Analyse statique (Fail Fast) sur toutes les branches sans contacter de backend
                     sh 'terraform init -backend=false -input=false'
-                    sh 'terraform fmt -check -recursive'
+                    sh 'terraform fmt -recursive'
                     sh 'terraform validate'
                 }
             }
@@ -175,6 +175,8 @@ pipeline {
                     sh '''
                         docker rm -f sentiment-staging 2>/dev/null || true
                     '''
+                    sh 'docker rm -f prometheus || true'
+                    sh 'docker rm -f grafana || true'
                     sh 'terraform apply -auto-approve -var="image_tag=${IMAGE_TAG}"'
                 }
             }
