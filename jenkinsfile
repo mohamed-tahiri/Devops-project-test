@@ -154,7 +154,7 @@ pipeline {
             when { expression { env.BRANCH_LABEL == 'main' } }
             steps {
                 withCredentials([usernamePassword(
-                    credentialsId: 'github-token',
+                    credentialsId: '0a94f2e4-10d0-454b-9961-ae0a41c86475',
                     usernameVariable: 'REGISTRY_USER',
                     passwordVariable: 'REGISTRY_PASS'
                 )]) {
