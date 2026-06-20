@@ -209,11 +209,11 @@ pipeline {
                     sleep 10
 
                     # 1. L’app répond
-                    curl -f http://localhost:8001/health || exit 1
+                    curl -f http://sentiment-staging:8000/health || exit 1
                     echo "/health OK"
 
                     # 2. Les métriques sont exposées
-                    curl -s http://localhost:8001/metrics | grep -q sentiment_predictions_total || exit 1
+                    curl -s http://sentiment-staging:8000/metrics | grep -q sentiment_predictions_total || exit 1
                     echo "/metrics OK -- métriques SentimentAI présentes"
 
                     # 3. Prometheus scrape l’app
